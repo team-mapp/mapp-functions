@@ -79,10 +79,34 @@ exports.onRestaurantCreated = functions.firestore
     return null;
   });
 
+exports.updateIndicesAll = functions.https.onRequest(
+  async (request, response) => {
+    await updateCollectionIndices(COLLECTION_CELEBS);
+    await updateCollectionIndices(COLLECTION_PROGRAMS);
+    await updateCollectionIndices(COLLECTION_RESTAURANTS);
+    response.send("Request update collection indices");
+  }
+);
+
+const updateCollectionIndices = async (collectionName: string) => {
+  const firestore = admin.firestore();
+  const documents = await firestore.collection(collectionName).listDocuments();
+  documents.forEach(async document => {
+    const snapshot = await document.get();
+    const data = snapshot.data();
+    if (data) {
+      data.indices = generateIndices(data.name);
+      await document.update(data);
+    }
+  });
+};
+
 const generateIndices = (name: String) => {
   const indices = [];
-  for (let end = 1; end <= name.length; end++) {
-    indices.push(name.substring(0, end));
+  for (let start = 0; start < name.length; start++) {
+    for (let end = start + 1; end <= name.length; end++) {
+      indices.push(name.substring(start, end));
+    }
   }
   return indices;
 };

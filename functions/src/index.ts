@@ -4,6 +4,11 @@ import * as admin from "firebase-admin";
 const COLLECTION_CELEBS = "celebs";
 const COLLECTION_PROGRAMS = "programs";
 const COLLECTION_RESTAURANTS = "restaurants";
+const COLLECTION_REVIEWS = "reviews";
+const COLLECTION_FAVORITES = "favorites";
+const COLLECTION_TOKENS = "tokens";
+
+const MESSAGE_TYPE_REVIEW_CREATED = "review_created";
 
 admin.initializeApp();
 
@@ -39,6 +44,67 @@ exports.onRestaurantCreated = functions.firestore
       return snapshot.ref.update(data);
     }
     return null;
+  });
+
+exports.onReviewCreated = functions.firestore
+  .document(`${COLLECTION_REVIEWS}/{reviewId}`)
+  .onCreate(async (snapshot, context) => {
+    const data = snapshot.data();
+    if (data) {
+      const targetId = data.restaurantId;
+
+      const favorites = await admin
+        .firestore()
+        .collection(COLLECTION_FAVORITES)
+        .get();
+
+      const userIds: Array<string> = [];
+
+      favorites.forEach(favorite => {
+        const favoriteData = favorite.data();
+        if (favoriteData) {
+          const restaurantId = favoriteData.restaurantId;
+          const userId = favoriteData.userId;
+
+          if (targetId == restaurantId) {
+            userIds.push(userId);
+          }
+        }
+      });
+
+      const tokens = await admin
+        .firestore()
+        .collection(COLLECTION_TOKENS)
+        .get();
+
+      const targetTokens: Array<string> = [];
+
+      tokens.forEach(token => {
+        const id = token.id;
+        const tokenData = token.data();
+
+        if (tokenData) {
+          const uid = tokenData.uid;
+
+          if (userIds.includes(uid)) {
+            targetTokens.push(id);
+          }
+        }
+      });
+
+      const message = {
+        data: {
+          type: MESSAGE_TYPE_REVIEW_CREATED,
+          restaurantId: targetId
+        },
+        tokens: targetTokens
+      };
+
+      const response = await admin.messaging().sendMulticast(message);
+      console.log(
+        `Sent message : (success: ${response.successCount}, failed: ${response.failureCount})`
+      );
+    }
   });
 
 exports.updateIndicesAll = functions.https.onRequest(

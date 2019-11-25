@@ -49,60 +49,52 @@ exports.onRestaurantCreated = functions.firestore
 exports.onReviewCreated = functions.firestore
   .document(`${COLLECTION_REVIEWS}/{reviewId}`)
   .onCreate(async (snapshot, context) => {
-    const data = snapshot.data();
-    if (data) {
-      const targetId = data.restaurantId;
+    console.info(`onReviewCreated: New review id (${context.params.reviewId})`);
+    const reviewData = snapshot.data();
+    if (reviewData) {
+      const notifyRestaurantId = reviewData.restaurantId;
 
       const favorites = await admin
         .firestore()
         .collection(COLLECTION_FAVORITES)
         .get();
 
-      const userIds: Array<string> = [];
-
-      favorites.forEach(favorite => {
-        const favoriteData = favorite.data();
-        if (favoriteData) {
-          const restaurantId = favoriteData.restaurantId;
-          const userId = favoriteData.userId;
-
-          if (targetId == restaurantId) {
-            userIds.push(userId);
-          }
-        }
-      });
+      const notifyIds: string[] = favorites.docs
+        .filter(doc => {
+          const data = doc.data();
+          return data && data.restaurantId == notifyRestaurantId;
+        })
+        .map(doc => {
+          const data = doc.data();
+          return data.userId;
+        });
 
       const tokens = await admin
         .firestore()
         .collection(COLLECTION_TOKENS)
         .get();
 
-      const targetTokens: Array<string> = [];
-
-      tokens.forEach(token => {
-        const id = token.id;
-        const tokenData = token.data();
-
-        if (tokenData) {
-          const uid = tokenData.uid;
-
-          if (userIds.includes(uid)) {
-            targetTokens.push(id);
-          }
-        }
-      });
+      const notifyTokens: string[] = tokens.docs
+        .filter(doc => {
+          const data = doc.data();
+          return data && notifyIds.includes(data.uid);
+        })
+        .map(doc => {
+          return doc.id;
+        });
 
       const message = {
         data: {
           type: MESSAGE_TYPE_REVIEW_CREATED,
-          restaurantId: targetId
+          restaurantId: notifyRestaurantId
         },
-        tokens: targetTokens
+        tokens: notifyTokens
       };
 
+      console.info(`onReviewCreated: Notify tokens ${notifyTokens}`);
       const response = await admin.messaging().sendMulticast(message);
-      console.log(
-        `Sent message : (success: ${response.successCount}, failed: ${response.failureCount})`
+      console.info(
+        `onReviewCreated: Notify results (success: ${response.successCount}, failed: ${response.failureCount})`
       );
     }
   });

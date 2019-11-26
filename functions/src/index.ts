@@ -83,19 +83,25 @@ exports.onReviewCreated = functions.firestore
           return doc.id;
         });
 
-      const message = {
-        data: {
-          type: MESSAGE_TYPE_REVIEW_CREATED,
-          restaurantId: notifyRestaurantId
-        },
-        tokens: notifyTokens
-      };
+      if (notifyTokens.length > 0) {
+        const message = {
+          data: {
+            type: MESSAGE_TYPE_REVIEW_CREATED,
+            restaurantId: notifyRestaurantId
+          },
+          tokens: notifyTokens
+        };
 
-      console.info(`onReviewCreated: Notify tokens ${notifyTokens}`);
-      const response = await admin.messaging().sendMulticast(message);
-      console.info(
-        `onReviewCreated: Notify results (success: ${response.successCount}, failed: ${response.failureCount})`
-      );
+        console.info(
+          `onReviewCreated: Notify tokens (length: ${notifyTokens.length})`
+        );
+        const response = await admin.messaging().sendMulticast(message);
+        console.info(
+          `onReviewCreated: Notify results (success: ${response.successCount}, failed: ${response.failureCount})`
+        );
+      } else {
+        console.info(`onReviewCreated: Notify tokens is empty`);
+      }
     }
   });
 

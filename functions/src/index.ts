@@ -105,6 +105,40 @@ exports.onReviewCreated = functions.firestore
     }
   });
 
+exports.analyzeRestaurants = functions.https.onRequest(
+  async (request, response) => {
+    const restaurants = await admin
+      .firestore()
+      .collection(COLLECTION_RESTAURANTS)
+      .get();
+
+    let output = "";
+    const docs = restaurants.docs;
+    for (let index = 0; index < docs.length; index++) {
+      const doc = docs[index];
+      const data = doc.data();
+      if (data) {
+        output += await validRestaurant(doc.id, data);
+      }
+    }
+
+    response.send(output);
+  }
+);
+
+async function validRestaurant(
+  id: string,
+  restaurant: FirebaseFirestore.DocumentData
+): Promise<string> {
+  console.info(`Analyze ${id}`);
+  const image = restaurant.image;
+  console.info(`image: ${image}`);
+  const bucket = admin.storage().bucket();
+  const isExist = await bucket.file(image).exists();
+  console.info(`exists: ${isExist}`);
+  return `${id}: ${image} = ${isExist}\n`;
+}
+
 exports.updateIndicesAll = functions.https.onRequest(
   async (request, response) => {
     await updateCollectionIndices(COLLECTION_CELEBS);
